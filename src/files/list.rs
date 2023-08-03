@@ -26,6 +26,10 @@ pub struct Config {
 
 pub async fn list(config: Config) -> Result<(), Error> {
     let hub = hub_helper::get_hub().await.map_err(Error::Hub)?;
+
+    get_quota(&hub)
+    .await?;
+
     let files = list_files(
         &hub,
         &ListFilesConfig {
@@ -76,6 +80,23 @@ pub struct ListFilesConfig {
     pub query: ListQuery,
     pub order_by: ListSortOrder,
     pub max_files: usize,
+}
+
+pub async fn get_quota(
+    hub: &Hub
+) -> Result<(), Error> {
+    let (_, about) = hub
+        .about()
+        .get()
+        .param("fields", "storageQuota")
+        .doit()
+        .await
+        .map_err(Error::About)?;
+
+    println!("usage: {}", about.storage_quota.as_ref().and_then(|u| u.usage).unwrap());
+    println!("limit: {}", about.storage_quota.as_ref().and_then(|u| u.limit).unwrap());
+
+    Ok(())
 }
 
 pub async fn list_files(
@@ -214,6 +235,7 @@ impl fmt::Display for ListSortOrder {
 pub enum Error {
     Hub(hub_helper::Error),
     ListFiles(google_drive3::Error),
+    About(google_drive3::Error),
 }
 
 impl error::Error for Error {}
@@ -223,6 +245,7 @@ impl Display for Error {
         match self {
             Error::Hub(e) => write!(f, "{}", e),
             Error::ListFiles(e) => write!(f, "Failed to list files: {}", e),
+            Error::About(e) => write!(f, "Failed to get quota info: {}", e),
         }
     }
 }
